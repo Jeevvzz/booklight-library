@@ -1,0 +1,1 @@
+ALTER TABLE `reading_progress` ADD `pagesPerDay` int DEFAULT 20 NOT NULL;
