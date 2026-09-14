@@ -10,6 +10,7 @@ import {
   getBook,
   getDashboardStats,
   getBorrowHistory,
+  getProgress,
   getUserBadges,
   joinRoom,
   listBooks,
@@ -94,6 +95,7 @@ export const libraryRouter = router({
     listMine: protectedProcedure.query(({ ctx }) => safe(() => listWishlist(ctx.user.id))),
   }),
   readingProgress: router({
+    get: protectedProcedure.input(z.object({ bookId: z.number().int().positive() })).query(({ ctx, input }) => safe(() => getProgress(ctx.user.id, input.bookId))),
     update: protectedProcedure.input(z.object({ bookId: z.number().int().positive(), pagesRead: z.number().int().min(0), totalPages: z.number().int().positive(), pagesPerDay: z.number().int().min(1).max(1000).default(20) })).mutation(({ ctx, input }) => safe(() => updateProgress(ctx.user.id, input.bookId, input.pagesRead, input.totalPages, input.pagesPerDay))),
   }),
   admin: router({

@@ -81,6 +81,12 @@ export async function updateProgress(userId: number, bookId: number, pagesRead: 
   return { pagesRead, totalPages, predictedFinishDate: finish };
 }
 
+export async function getProgress(userId: number, bookId: number) {
+  const db = assertDb(await getDb());
+  const rows = await db.select().from(readingProgress).where(and(eq(readingProgress.userId, userId), eq(readingProgress.bookId, bookId))).limit(1);
+  return rows[0] ?? null;
+}
+
 export async function listReviews(bookId: number) {
   const db = assertDb(await getDb());
   return db.select({ review: reviews, user: { id: users.id, name: users.name } }).from(reviews).innerJoin(users, eq(users.id, reviews.userId)).where(eq(reviews.bookId, bookId)).orderBy(desc(reviews.createdAt));
@@ -108,7 +114,7 @@ export async function getDashboardStats() {
 
 export async function listRooms() {
   const db = assertDb(await getDb());
-  return db.select({ room: readingRooms, book: books }).from(readingRooms).innerJoin(books, eq(books.id, readingRooms.bookId)).orderBy(desc(readingRooms.createdAt));
+  return db.select({ room: readingRooms, book: books, memberCount: count(roomMembers.id) }).from(readingRooms).innerJoin(books, eq(books.id, readingRooms.bookId)).leftJoin(roomMembers, eq(roomMembers.roomId, readingRooms.id)).groupBy(readingRooms.id, books.id).orderBy(desc(readingRooms.createdAt));
 }
 
 export async function createRoom(userId: number, input: { name: string; bookId: number; startDate: Date; endDate: Date }) {
