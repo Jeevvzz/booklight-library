@@ -10,6 +10,17 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function getSuccessRedirect(state: string): string {
+  const oauthState = decodeOAuthState(state);
+  const callbackUrl = new URL(oauthState.redirectUri);
+  const returnTo = oauthState.returnTo || "/dashboard";
+  const destination = new URL(returnTo, callbackUrl.origin);
+  if (destination.origin !== callbackUrl.origin) {
+    throw new Error("OAuth return path must stay on the application origin");
+  }
+  return `${destination.pathname}${destination.search}${destination.hash}`;
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -20,18 +31,17 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
 
-    // CSRF guard: the nonce in `state` must match the one-time cookie that
-    // startLogin set in the browser that began this login. An attacker can
-    // forge `state`, but cannot plant this cookie in the victim's browser.
-    const { nonce } = decodeOAuthState(state);
-    const expectedNonce = parseCookieHeader(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
-    if (!nonce || nonce !== expectedNonce) {
-      res.status(403).json({ error: "invalid oauth state" });
-      return;
-    }
-    res.clearCookie(OAUTH_STATE_COOKIE, { path: "/", secure: true, sameSite: "none" });
-
     try {
+      const { nonce } = decodeOAuthState(state);
+      const expectedNonce = parseCookieHeader(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
+      if (!nonce || nonce !== expectedNonce) {
+        res.status(403).json({ error: "invalid oauth state" });
+        return;
+      }
+
+      const successRedirect = getSuccessRedirect(state);
+      res.clearCookie(OAUTH_STATE_COOKIE, { path: "/", secure: true, sameSite: "none" });
+
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 
@@ -55,11 +65,12 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-
-      res.redirect(302, "/");
+      res.redirect(302, successRedirect);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
   });
 }
+
+export { getSuccessRedirect };
