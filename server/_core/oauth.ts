@@ -27,7 +27,7 @@ export function registerOAuthRoutes(app: Express) {
     const state = getQueryParam(req, "state");
 
     if (!code || !state) {
-      res.status(400).json({ error: "code and state are required" });
+      res.redirect(302, "/auth?oauthError=callback");
       return;
     }
 
@@ -35,7 +35,7 @@ export function registerOAuthRoutes(app: Express) {
       const { nonce } = decodeOAuthState(state);
       const expectedNonce = parseCookieHeader(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
       if (!nonce || nonce !== expectedNonce) {
-        res.status(403).json({ error: "invalid oauth state" });
+        res.redirect(302, "/auth?oauthError=state");
         return;
       }
 
@@ -68,7 +68,7 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, successRedirect);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+      res.redirect(302, "/auth?oauthError=callback");
     }
   });
 }

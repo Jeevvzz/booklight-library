@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BarChart3, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -26,6 +26,33 @@ export default function Admin() {
   const [copies, setCopies] = useState(1);
   const [pages, setPages] = useState(0);
   const [editing, setEditing] = useState<EditableBook | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    const focusable = () => Array.from(modalRef.current?.querySelectorAll<HTMLElement>("button, input") ?? []).filter((element) => !element.hasAttribute("disabled"));
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEditing(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [editing]);
 
   const refreshInventory = async () => {
     await Promise.all([
@@ -89,7 +116,7 @@ export default function Admin() {
   };
 
   return (
-    <div>
+    <div className="page-enter">
       <div className="flex items-end justify-between">
         <div>
           <div className="text-xs uppercase tracking-[.2em] text-blue-300">Operations</div>
@@ -101,7 +128,7 @@ export default function Admin() {
 
       <div className="mt-7 grid gap-4 sm:grid-cols-4">
         {[["Books", stats.data?.totalBooks ?? 0], ["Active borrows", stats.data?.activeBorrows ?? 0], ["Overdue", stats.data?.overdueCount ?? 0], ["Members", stats.data?.totalMembers ?? 0]].map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-white/10 bg-[#101a2b]/70 p-5">
+          <div key={label} className="glass-card rounded-2xl p-5">
             <div className="text-xs text-slate-500">{label}</div>
             <div className="mt-2 text-3xl font-semibold text-white">{value}</div>
           </div>
@@ -109,7 +136,7 @@ export default function Admin() {
       </div>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
-        <form onSubmit={submitCreate} className="rounded-2xl border border-white/10 bg-[#101a2b]/70 p-5">
+        <form onSubmit={submitCreate} className="glass-card rounded-2xl p-5">
           <h2 className="font-semibold text-white">Add a book</h2>
           <div className="mt-4 space-y-3">
             <input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" className={fieldClass} />
@@ -123,7 +150,7 @@ export default function Admin() {
           </div>
         </form>
 
-        <div className="rounded-2xl border border-white/10 bg-[#101a2b]/70 p-5">
+        <div className="glass-card rounded-2xl p-5">
           <h2 className="font-semibold text-white">Inventory</h2>
           <div className="mt-4 space-y-2">
             {books.data?.items.map((book) => (
@@ -141,7 +168,7 @@ export default function Admin() {
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="edit-book-title">
+        <div ref={modalRef} className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="edit-book-title">
           <form onSubmit={submitEdit} className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#101a2b] p-6 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
