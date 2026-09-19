@@ -30,6 +30,8 @@ export const books = mysqlTable("books", {
   isbn: varchar("isbn", { length: 32 }).unique(),
   genre: varchar("genre", { length: 100 }).notNull(),
   description: text("description"),
+  content: text("content"),
+  keyPoints: text("keyPoints"),
   coverImageUrl: text("coverImageUrl"),
   totalCopies: int("totalCopies").default(1).notNull(),
   availableCopies: int("availableCopies").default(1).notNull(),

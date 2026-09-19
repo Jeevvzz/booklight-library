@@ -11,6 +11,8 @@ type EditableBook = {
   genre: string;
   totalCopies: number;
   totalPages: number;
+  content: string;
+  keyPoints: string;
 };
 
 const fieldClass = "h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-slate-100 outline-none focus:border-blue-300/60";
@@ -25,6 +27,8 @@ export default function Admin() {
   const [genre, setGenre] = useState("Fiction");
   const [copies, setCopies] = useState(1);
   const [pages, setPages] = useState(0);
+  const [content, setContent] = useState("");
+  const [keyPoints, setKeyPoints] = useState("");
   const [editing, setEditing] = useState<EditableBook | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +73,8 @@ export default function Admin() {
       setGenre("Fiction");
       setCopies(1);
       setPages(0);
+      setContent("");
+      setKeyPoints("");
       await refreshInventory();
     },
     onError: (error) => toast.error(error.message),
@@ -97,7 +103,7 @@ export default function Admin() {
 
   const submitCreate = (event: React.FormEvent) => {
     event.preventDefault();
-    create.mutate({ title, author, genre, totalCopies: copies, totalPages: pages, moodTags: [] });
+    create.mutate({ title, author, genre, totalCopies: copies, totalPages: pages, content, keyPoints, moodTags: [] });
   };
 
   const openEdit = (book: EditableBook) => setEditing({ ...book });
@@ -112,6 +118,8 @@ export default function Admin() {
       genre: editing.genre,
       totalCopies: editing.totalCopies,
       totalPages: editing.totalPages,
+      content: editing.content,
+      keyPoints: editing.keyPoints,
     });
   };
 
@@ -146,6 +154,8 @@ export default function Admin() {
               <input type="number" min="1" value={copies} onChange={(event) => setCopies(Number(event.target.value))} placeholder="Copies" className={fieldClass} />
               <input type="number" min="0" value={pages} onChange={(event) => setPages(Number(event.target.value))} placeholder="Pages" className={fieldClass} />
             </div>
+            <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Readable content (optional)" className="min-h-24 w-full rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-slate-100 outline-none focus:border-blue-300/60" />
+            <textarea value={keyPoints} onChange={(event) => setKeyPoints(event.target.value)} placeholder="Key points (one per line)" className="min-h-20 w-full rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-slate-100 outline-none focus:border-blue-300/60" />
             <button disabled={create.isPending} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-400 text-sm font-semibold text-slate-950 disabled:opacity-60"><Plus size={15} /> Add inventory item</button>
           </div>
         </form>
@@ -159,7 +169,7 @@ export default function Admin() {
                   <div className="truncate text-sm text-slate-200">{book.title}</div>
                   <div className="text-xs text-slate-500">{book.author} · {book.availableCopies}/{book.totalCopies} available</div>
                 </div>
-                <button onClick={() => openEdit({ id: book.id, title: book.title, author: book.author, genre: book.genre, totalCopies: book.totalCopies, totalPages: book.totalPages })} className="text-slate-500 hover:text-blue-300" aria-label={`Edit ${book.title}`}><Pencil size={16} /></button>
+                <button onClick={() => openEdit({ id: book.id, title: book.title, author: book.author, genre: book.genre, totalCopies: book.totalCopies, totalPages: book.totalPages, content: book.content ?? "", keyPoints: book.keyPoints ?? "" })} className="text-slate-500 hover:text-blue-300" aria-label={`Edit ${book.title}`}><Pencil size={16} /></button>
                 <button onClick={() => remove.mutate({ id: book.id })} className="text-slate-500 hover:text-rose-300" aria-label={`Delete ${book.title}`}><Trash2 size={16} /></button>
               </div>
             ))}
@@ -185,6 +195,8 @@ export default function Admin() {
                 <label className="block text-sm text-slate-300">Copies<input required type="number" min="1" value={editing.totalCopies} onChange={(event) => setEditing({ ...editing, totalCopies: Number(event.target.value) })} className={`mt-2 ${fieldClass}`} /></label>
                 <label className="block text-sm text-slate-300">Pages<input required type="number" min="0" value={editing.totalPages} onChange={(event) => setEditing({ ...editing, totalPages: Number(event.target.value) })} className={`mt-2 ${fieldClass}`} /></label>
               </div>
+              <label className="block text-sm text-slate-300">Readable content<textarea value={editing.content} onChange={(event) => setEditing({ ...editing, content: event.target.value })} className="mt-2 min-h-28 w-full rounded-lg border border-white/10 bg-black/20 p-3 text-sm outline-none" /></label>
+              <label className="block text-sm text-slate-300">Key points<textarea value={editing.keyPoints} onChange={(event) => setEditing({ ...editing, keyPoints: event.target.value })} placeholder="One point per line" className="mt-2 min-h-20 w-full rounded-lg border border-white/10 bg-black/20 p-3 text-sm outline-none" /></label>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">Cancel</button>

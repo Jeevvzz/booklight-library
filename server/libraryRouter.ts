@@ -30,6 +30,8 @@ const bookInput = z.object({
   isbn: z.string().trim().max(32).optional(),
   genre: z.string().trim().min(1).max(100),
   description: z.string().max(10000).optional(),
+  content: z.string().max(200000).optional(),
+  keyPoints: z.string().max(10000).optional(),
   coverImageUrl: z.string().url().optional(),
   totalCopies: z.number().int().min(1).max(10000),
   availableCopies: z.number().int().min(0).max(10000).optional(),
@@ -43,6 +45,11 @@ const safe = async <T>(operation: () => Promise<T>): Promise<T> => {
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? error.message : "Database operation failed" });
   }
 };
+
+const voiceCommandResponse = z.object({
+  action: z.enum(["play", "pause", "stop", "next", "previous", "catalog", "dashboard", "page", "unknown"]),
+  reply: z.string().trim().min(1).max(240),
+});
 
 export const libraryRouter = router({
   books: router({
@@ -108,6 +115,31 @@ export const libraryRouter = router({
       return createRoom(ctx.user.id, input);
     })),
     join: protectedProcedure.input(z.object({ roomId: z.number().int().positive() })).mutation(({ ctx, input }) => safe(() => joinRoom(ctx.user.id, input.roomId))),
+  }),
+  voiceAssistant: router({
+    command: protectedProcedure.input(z.object({ command: z.string().trim().min(1).max(160) })).mutation(({ input }) => safe(async () => {
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Voice assistant is not configured." });
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          temperature: 0,
+          max_tokens: 80,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: "Classify the short reader command. Return only JSON with action and reply. Actions: play, pause, stop, next, previous, catalog, dashboard, page, unknown. Map read this book/play to play; previous page to previous; what page am I on to page; navigation requests to catalog/dashboard. Reply must be a brief spoken response and must not mention book content." },
+            { role: "user", content: input.command },
+          ],
+        }),
+      });
+      if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "Voice assistant service is temporarily unavailable." });
+      const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const content = payload.choices?.[0]?.message?.content;
+      if (!content) throw new TRPCError({ code: "BAD_GATEWAY", message: "Voice assistant returned no command." });
+      try { return voiceCommandResponse.parse(JSON.parse(content)); } catch { throw new TRPCError({ code: "BAD_GATEWAY", message: "Voice assistant returned an invalid command." }); }
+    })),
   }),
   profile: router({
     update: protectedProcedure.input(z.object({ name: z.string().trim().min(1).max(160), email: z.string().email().max(320) })).mutation(({ ctx, input }) => safe(async () => {

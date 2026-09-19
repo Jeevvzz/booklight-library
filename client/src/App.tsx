@@ -9,6 +9,7 @@ import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import Catalog from "./pages/Catalog";
 import BookDetail from "./pages/BookDetail";
+import Reader from "./pages/Reader";
 import Rooms from "./pages/Rooms";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
@@ -24,6 +25,7 @@ function Router() {
     <Route path="/auth" component={AuthPage} />
     <Route path="/dashboard">{() => <Protected><Dashboard /></Protected>}</Route>
     <Route path="/catalog">{() => <Protected><Catalog /></Protected>}</Route>
+    <Route path="/books/:id/read">{(params) => <Protected><Reader id={Number(params.id)} /></Protected>}</Route>
     <Route path="/books/:id">{(params) => <Protected><BookDetail id={Number(params.id)} /></Protected>}</Route>
     <Route path="/rooms">{() => <Protected><Rooms /></Protected>}</Route>
     <Route path="/profile">{() => <Protected><Profile /></Protected>}</Route>
