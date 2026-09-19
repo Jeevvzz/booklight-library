@@ -29,14 +29,20 @@ export default function Reader({ id }: { id: number }) {
   const [paused, setPaused] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState("");
+  const [lastHeard, setLastHeard] = useState("—");
+  const [assistantState, setAssistantState] = useState<"idle" | "listening" | "processing" | "responding">("idle");
   const recognitionRef = useRef<Recognition | null>(null);
   const announcedBookRef = useRef<number | null>(null);
   const pages = useMemo(() => splitPages(book.data?.content, book.data?.totalPages ?? 1), [book.data?.content, book.data?.totalPages]);
 
   const speakReply = (text: string) => {
     if (!window.speechSynthesis) return;
+    setAssistantState("responding");
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setAssistantState("idle");
+    utterance.onerror = () => setAssistantState("idle");
+    window.speechSynthesis.speak(utterance);
   };
 
   useEffect(() => {
@@ -93,13 +99,16 @@ export default function Reader({ id }: { id: number }) {
     recognition.onresult = (event) => {
       const command = event.results[0]?.[0]?.transcript?.trim();
       if (!command) return;
+      setLastHeard(command);
       setVoiceStatus(`Heard: ${command}`);
-      voiceCommand.mutate({ command }, { onSuccess: (result) => applyVoiceAction(result.action, result.reply), onError: () => { setVoiceStatus("Voice assistant unavailable."); speakReply("The voice assistant is unavailable right now."); } });
+      setAssistantState("processing");
+      voiceCommand.mutate({ command }, { onSuccess: (result) => applyVoiceAction(result.action, result.reply), onError: () => { setAssistantState("idle"); setVoiceStatus("Voice assistant unavailable."); speakReply("The voice assistant is unavailable right now."); } });
     };
-    recognition.onerror = () => { setListening(false); setVoiceStatus("I could not hear a command."); };
-    recognition.onend = () => setListening(false);
+    recognition.onerror = () => { setListening(false); setAssistantState("idle"); setVoiceStatus("I could not hear a command."); };
+    recognition.onend = () => { setListening(false); if (assistantState === "listening") setAssistantState("idle"); };
     recognitionRef.current = recognition;
     setListening(true);
+    setAssistantState("listening");
     setVoiceStatus("Listening for a reader command…");
     recognition.start();
   };
@@ -127,6 +136,6 @@ export default function Reader({ id }: { id: number }) {
     <section className="glass-card mt-6 rounded-3xl p-6 sm:p-10" aria-label={`Reading page ${page + 1} of ${pages.length}`}><div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4"><div className="flex items-center gap-2 text-sm text-slate-400"><Volume2 size={16} className="text-blue-300" aria-hidden="true" /> Audiobook mode</div><div className="flex gap-2" aria-label="Audiobook controls">{!speaking ? <button onClick={playPage} aria-label="Play current page aloud" className="glass-button-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><Play size={14} aria-hidden="true" /> Play page</button> : paused ? <button onClick={resumeSpeech} aria-label="Resume audiobook" className="glass-button-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><Play size={14} aria-hidden="true" /> Resume</button> : <button onClick={pauseSpeech} aria-label="Pause audiobook" className="glass-button-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><Pause size={14} aria-hidden="true" /> Pause</button>}<button onClick={stopSpeech} disabled={!speaking} aria-label="Stop audiobook" className="glass-button-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-40"><Square size={13} aria-hidden="true" /> Stop</button></div></div><div role="region" aria-live="polite" aria-atomic="true" aria-label={`Current reading content, page ${page + 1} of ${pages.length}`} tabIndex={0} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"><p className={`whitespace-pre-wrap font-serif text-slate-200 ${fontClass}`}>{pages[page]}</p></div><div className="mt-8 flex items-center justify-between border-t border-white/10 pt-5"><button disabled={page === 0} onClick={() => setPage((current) => current - 1)} aria-label="Go to previous page" className="glass-button-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-40"><ChevronLeft size={16} aria-hidden="true" /> Previous</button><span className="text-xs text-slate-500" aria-live="polite">Page {page + 1} of {pages.length}</span><button disabled={page === pages.length - 1} onClick={() => setPage((current) => Math.min(current + 1, pages.length - 1))} aria-label="Go to next page" className="glass-button-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-40">Next <ChevronRight size={16} aria-hidden="true" /></button></div></section>
     {keyPoints.length > 0 && <section className="glass-card mt-5 rounded-2xl p-5" aria-labelledby="reader-key-points"><h2 id="reader-key-points" className="font-semibold text-white">Key points</h2><ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300">{keyPoints.map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul></section>}
     <div role="status" aria-live="polite" className="sr-only">{voiceStatus}</div>
-    <button onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label="Voice assistant, press to activate" aria-pressed={listening} title="Voice assistant" className={`fixed bottom-6 right-6 z-40 grid h-16 w-16 place-items-center rounded-full border border-blue-200/40 bg-blue-400 text-slate-950 shadow-[0_0_28px_rgba(96,165,250,.4)] transition hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 ${listening ? "animate-pulse" : ""}`}><Mic size={25} aria-hidden="true" /></button>
+    <div className="fixed bottom-6 right-6 z-40 flex items-end gap-3"><div className="glass-card min-w-56 rounded-2xl border border-white/10 p-3 text-xs shadow-xl" role="status" aria-live="polite"><div className="font-semibold text-white">Voice assistant</div><div className="mt-1 text-slate-400">Last heard: <span className="text-slate-200">{lastHeard}</span></div><div className="mt-1 text-slate-400">State: <span className="capitalize text-blue-200">{assistantState}</span></div></div><button onClick={listening ? () => recognitionRef.current?.stop() : startListening} aria-label="Voice assistant, press to activate" aria-pressed={listening} title="Voice assistant" className={`grid h-16 w-16 place-items-center rounded-full border border-blue-200/40 bg-blue-400 text-slate-950 shadow-[0_0_28px_rgba(96,165,250,.4)] transition hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 ${listening ? "animate-pulse" : ""}`}><Mic size={25} aria-hidden="true" /></button></div>
   </div>;
 }
